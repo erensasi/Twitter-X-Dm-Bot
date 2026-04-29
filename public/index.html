@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XBot — Otomatik DM Yönetimi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">𝕏</div>
+        <div>
+          <div class="logo-title">XBot</div>
+          <div class="logo-sub">DM Otomasyonu</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-tab="panel">
+          <span class="nav-icon">⚡</span> Kontrol Paneli
+        </button>
+        <button class="nav-item" data-tab="accounts">
+          <span class="nav-icon">👥</span> Hesap Listesi
+        </button>
+        <button class="nav-item" data-tab="session">
+          <span class="nav-icon">🔐</span> Oturum
+        </button>
+        <button class="nav-item" data-tab="logs">
+          <span class="nav-icon">📊</span> Kayıtlar
+        </button>
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Beklemede</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+
+      <!-- ─── Kontrol Paneli ─── -->
+      <section class="tab-content active" id="tab-panel">
+        <div class="page-header">
+          <h1>Kontrol Paneli</h1>
+          <p>Otomasyon ayarlarını yapılandır ve başlat</p>
+        </div>
+
+        <div class="grid-2">
+
+          <!-- Mesaj Ayarları -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-icon">✉️</span>
+              <h2>Mesaj Şablonu</h2>
+            </div>
+            <div class="field">
+              <label>Mesaj İçeriği</label>
+              <div class="textarea-wrap">
+                <textarea id="message" rows="5" placeholder="Merhaba {{isim}}, sana bir teklifim var..."></textarea>
+              </div>
+              <div class="field-hint">
+                Kullanılabilir değişkenler: <code>{{isim}}</code> <code>{{kullanici_adi}}</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filtre Ayarları -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-icon">🎯</span>
+              <h2>Filtreler</h2>
+            </div>
+            <div class="field">
+              <label>Minimum Takipçi Sayısı</label>
+              <div class="input-suffix">
+                <input type="number" id="minFollowers" value="10000" min="0">
+                <span class="suffix">takipçi</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Hesap Başına Maks. Tarama</label>
+              <div class="input-suffix">
+                <input type="number" id="maxPerAccount" value="500" min="1">
+                <span class="suffix">kişi</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Oturum Başına Maks. DM</label>
+              <div class="input-suffix">
+                <input type="number" id="maxDMPerSession" value="80" min="1">
+                <span class="suffix">mesaj</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>X Passcode <span class="optional">(DM doğrulama kodu)</span></label>
+              <div class="input-suffix">
+                <input type="password" id="passcode" placeholder="X hesap şifresi veya doğrulama kodu" value="1111">
+                <span class="suffix">🔑</span>
+              </div>
+              <div class="field-hint">X, DM gönderiminde kimlik sorduğunda bu kod otomatik girilir</div>
+            </div>
+          </div>
+
+          <!-- Bekleme Ayarları -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-icon">⏱️</span>
+              <h2>Bekleme Süresi (DM Arası)</h2>
+            </div>
+            <p class="card-desc">Format: <strong>Dakika.Saniye</strong> — Örn: <code>1.00</code> = 1dk 0sn, <code>1.45</code> = 1dk 45sn</p>
+            <div class="range-inputs">
+              <div class="field">
+                <label>Minimum</label>
+                <div class="input-suffix">
+                  <input type="text" id="minDelay" value="1.00" placeholder="1.00">
+                  <span class="suffix">dk.sn</span>
+                </div>
+              </div>
+              <div class="range-separator">—</div>
+              <div class="field">
+                <label>Maksimum</label>
+                <div class="input-suffix">
+                  <input type="text" id="maxDelay" value="1.45" placeholder="1.45">
+                  <span class="suffix">dk.sn</span>
+                </div>
+              </div>
+            </div>
+            <div class="delay-preview" id="delayPreview"></div>
+          </div>
+
+          <!-- İstatistikler -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-icon">📈</span>
+              <h2>Canlı İstatistik</h2>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-val" id="statSent">0</div>
+                <div class="stat-label">Gönderildi</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val" id="statSkipped">0</div>
+                <div class="stat-label">Atlandı</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val" id="statScanned">0</div>
+                <div class="stat-label">Tarandı</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kontrol Butonları -->
+        <div class="control-bar">
+          <button class="btn btn-start" id="btnStart" onclick="startBot()">
+            <span>▶</span> Otomasyonu Başlat
+          </button>
+          <button class="btn btn-stop" id="btnStop" onclick="stopBot()" disabled>
+            <span>⏹</span> Durdur
+          </button>
+        </div>
+
+        <!-- Canlı Log -->
+        <div class="card log-card">
+          <div class="card-header">
+            <span class="card-icon">📋</span>
+            <h2>Canlı Log</h2>
+            <button class="btn-clear" onclick="clearLog()">Temizle</button>
+          </div>
+          <div class="log-container" id="logContainer">
+            <div class="log-empty">Otomasyon başladığında loglar burada görünecek...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Hesap Listesi ─── -->
+      <section class="tab-content" id="tab-accounts">
+        <div class="page-header">
+          <h1>Hedef Hesap Listesi</h1>
+          <p>Takipçileri taranacak X hesaplarını girin</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">📝</span>
+            <h2>accounts.txt</h2>
+            <button class="btn-save" onclick="saveAccounts()">💾 Kaydet</button>
+          </div>
+          <div class="accounts-hint">
+            Her satıra bir hesap girin. <code>@</code> ile ya da olmadan yazabilirsiniz.
+          </div>
+          <textarea id="accountsText" class="accounts-textarea" placeholder="@ahmet&#10;@mehmet123&#10;@kullanici456" spellcheck="false"></textarea>
+          <div class="accounts-count" id="accountsCount">0 hesap</div>
+        </div>
+      </section>
+
+      <!-- ─── Oturum ─── -->
+      <section class="tab-content" id="tab-session">
+        <div class="page-header">
+          <h1>X Oturumu</h1>
+          <p>Tarayıcından session token'ını girerek giriş yap</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🔐</span>
+            <h2>Session Cookie</h2>
+          </div>
+
+          <div class="session-status-bar" id="sessionStatusBar">
+            <div class="session-dot inactive" id="sessionDot"></div>
+            <span id="sessionStatusText">Oturum bulunamadı</span>
+          </div>
+
+          <div class="session-guide">
+            <h3>🔍 auth_token Nasıl Alınır?</h3>
+            <ol>
+              <li>Chrome'da <strong>x.com</strong>'a giriş yap</li>
+              <li><kbd>F12</kbd> → Uygulama → Çerezler → <code>https://x.com</code></li>
+              <li><code>auth_token</code> adlı çerezi bul, değerini kopyala</li>
+              <li>Aşağıya yapıştır</li>
+            </ol>
+          </div>
+
+          <div class="field">
+            <label>auth_token <span class="required">*</span></label>
+            <input type="text" id="authToken" placeholder="auth_token değerini buraya yapıştır..." class="mono-input">
+          </div>
+          <div class="field">
+            <label>ct0 <span class="optional">(opsiyonel ama önerilen)</span></label>
+            <input type="text" id="ct0Token" placeholder="ct0 değerini buraya yapıştır..." class="mono-input">
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="saveSession()">
+              🔐 Oturumu Kaydet
+            </button>
+            <button class="btn btn-danger" onclick="deleteSession()">
+              🗑️ Oturumu Sil
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Kayıtlar ─── -->
+      <section class="tab-content" id="tab-logs">
+        <div class="page-header">
+          <h1>DM Kayıtları</h1>
+          <p>Gönderilen ve atlanan mesajların geçmişi</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">📊</span>
+            <h2>Geçmiş</h2>
+            <a href="/api/logs/csv" class="btn-export">⬇ CSV İndir</a>
+          </div>
+          <div class="table-wrap">
+            <table class="log-table" id="logTable">
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>Kullanıcı</th>
+                  <th>Takipçi</th>
+                  <th>Hedef</th>
+                  <th>Durum</th>
+                </tr>
+              </thead>
+              <tbody id="logTableBody">
+                <tr><td colspan="5" class="empty-row">Henüz kayıt yok</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
