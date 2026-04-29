@@ -596,7 +596,7 @@ async function startAutomation(config) {
   let totalSkipped = 0;
   let totalScanned = 0;
 
-  browser = await chromium.launch({ headless: false, slowMo: 50 });
+  browser = await chromium.launch({ headless: true, slowMo: 20 });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 }
