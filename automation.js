@@ -494,17 +494,17 @@ async function sendDM(context, username, messageTemplate, passcode = '') {
 }
 
 
-// ─── Takipçi Listesi Çek ────────────────────────────
+// ─── Takip Edilen Listesi Çek ────────────────────────────
 
-async function getFollowers(context, targetUsername, maxPerAccount) {
-  const followers = new Set();
-  log('info', `@${targetUsername} takipçileri taranıyor...`);
-  const page = await safeGoto(context, `https://x.com/${targetUsername}/followers`);
+async function getFollowings(context, targetUsername, maxPerAccount) {
+  const followings = new Set();
+  log('info', `@${targetUsername} takip edilenleri taranıyor...`);
+  const page = await safeGoto(context, `https://x.com/${targetUsername}/following`);
   try {
     // İlk UserCell yüklenene kadar bekle (max 15sn)
     const firstCell = await page.waitForSelector('[data-testid="UserCell"]', { timeout: 30000 }).catch(() => null);
     if (!firstCell) {
-      log('info', `@${targetUsername} takipçi listesi yüklenemedi veya boş`);
+      log('info', `@${targetUsername} takip edilen listesi yüklenemedi veya boş`);
       return [];
     }
     await sleep(2000);
@@ -512,7 +512,7 @@ async function getFollowers(context, targetUsername, maxPerAccount) {
     let noNewCount = 0;
     const MAX_NO_NEW = 8;
 
-  while (followers.size < maxPerAccount && !stopRequested) {
+  while (followings.size < maxPerAccount && !stopRequested) {
     // Tüm görünür UserCell'leri topla
     const cells = await page.$$('[data-testid="UserCell"]');
     for (const cell of cells) {
@@ -524,34 +524,34 @@ async function getFollowers(context, targetUsername, maxPerAccount) {
         // /username formatı: tek slash, username kısmı, alt path yok
         const parts = href.split('/').filter(Boolean);
         if (parts.length === 1 && !parts[0].includes('?') && !parts[0].includes('.')) {
-          followers.add(parts[0]);
-          if (followers.size >= maxPerAccount) break;
+          followings.add(parts[0]);
+          if (followings.size >= maxPerAccount) break;
         }
       }
-      if (followers.size >= maxPerAccount) break;
+      if (followings.size >= maxPerAccount) break;
     }
 
-    log('scan', `${followers.size} / ${maxPerAccount} takipçi toplandı`);
-    global.broadcast && global.broadcast('stats', { scanned: followers.size });
+    log('scan', `${followings.size} / ${maxPerAccount} takip edilen toplandı`);
+    global.broadcast && global.broadcast('stats', { scanned: followings.size });
 
-    if (followers.size >= maxPerAccount) break;
+    if (followings.size >= maxPerAccount) break;
 
     // Yeni tak. geldiyse sifirla, gelmediyse say
-    if (followers.size === lastCount) {
+    if (followings.size === lastCount) {
       noNewCount++;
       if (noNewCount >= MAX_NO_NEW) break; // Liste bitti
     } else {
       noNewCount = 0;
     }
-    lastCount = followers.size;
+    lastCount = followings.size;
 
     // Scroll down
     await page.evaluate(() => window.scrollBy(0, 1200));
     await sleep(4000); // X'in lazy-load'u için biraz bekle
   }
 
-    log('info', `Toplam ${followers.size} takipçi toplandı`);
-    return Array.from(followers);
+    log('info', `Toplam ${followings.size} takip edilen toplandı`);
+    return Array.from(followings);
   } finally {
     await page.close().catch(() => {});
   }
@@ -596,7 +596,7 @@ async function startAutomation(config) {
   let totalSkipped = 0;
   let totalScanned = 0;
 
-  browser = await chromium.launch({ headless: true, slowMo: 20 });
+  browser = await chromium.launch({ headless: false, slowMo: 20 });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 }
@@ -614,16 +614,16 @@ async function startAutomation(config) {
 
       log('target', `Hedef: @${target}`);
 
-      // getFollowers taze sayfa açıp kapayacak şekilde context alıyor
-      const followers = await getFollowers(context, target, maxPerAccount);
+      // getFollowings taze sayfa açıp kapayacak şekilde context alıyor
+      const followings = await getFollowings(context, target, maxPerAccount);
 
       let consecutiveFailures = 0;
 
-      for (const follower of followers) {
+      for (const targetUser of followings) {
         if (stopRequested || totalSent >= maxDMPerSession) break;
 
         totalScanned++;
-        log('check', `@${follower} kontrol ediliyor...`);
+        log('check', `@${targetUser} kontrol ediliyor...`);
 
         // Çok fazla ardışık yüklenemedi hatası varsa session yenile
         if (consecutiveFailures >= 5) {
@@ -644,10 +644,10 @@ async function startAutomation(config) {
           await sleep(5000);
         }
 
-        const profile = await checkProfile(context, follower);
+        const profile = await checkProfile(context, targetUser);
 
         if (!profile.ok) {
-          log('skip', `@${follower} atlandı → ${profile.reason}`);
+          log('skip', `@${targetUser} atlandı → ${profile.reason}`);
           consecutiveFailures++;
           totalSkipped++;
           global.broadcast && global.broadcast('stats', { sent: totalSent, skipped: totalSkipped, scanned: totalScanned });
@@ -657,7 +657,7 @@ async function startAutomation(config) {
         consecutiveFailures = 0;
 
         if (profile.followers < minFollowers) {
-          log('skip', `@${follower} atlandı → Takipçi: ${profile.followers.toLocaleString()} (< ${minFollowers.toLocaleString()})`);
+          log('skip', `@${targetUser} atlandı → Takipçi: ${profile.followers.toLocaleString()} (< ${minFollowers.toLocaleString()})`);
           totalSkipped++;
           global.broadcast && global.broadcast('stats', { sent: totalSent, skipped: totalSkipped, scanned: totalScanned });
           await sleep(1000);
@@ -665,16 +665,16 @@ async function startAutomation(config) {
         }
 
         // DM gönder
-        log('dm', `@${follower} mesaj gönderiliyor (${profile.followers.toLocaleString()} takipçi)...`);
-        const result = await sendDM(context, follower, message, passcode);
+        log('dm', `@${targetUser} mesaj gönderiliyor (${profile.followers.toLocaleString()} takipçi)...`);
+        const result = await sendDM(context, targetUser, message, passcode);
 
         if (result.ok) {
           totalSent++;
-          log('sent', `✅ @${follower} → Gönderildi (Toplam: ${totalSent})`);
-          saveToLog({ username: follower, followers: profile.followers, status: 'gönderildi', target });
+          log('sent', `✅ @${targetUser} → Gönderildi (Toplam: ${totalSent})`);
+          saveToLog({ username: targetUser, followers: profile.followers, status: 'gönderildi', target });
         } else {
-          log('fail', `❌ @${follower} → ${result.reason}`);
-          saveToLog({ username: follower, followers: profile.followers, status: result.reason, target });
+          log('fail', `❌ @${targetUser} → ${result.reason}`);
+          saveToLog({ username: targetUser, followers: profile.followers, status: result.reason, target });
           totalSkipped++;
         }
 
